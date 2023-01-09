@@ -1,0 +1,698 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+
+      #veriseti linlki                               
+https://www.kaggle.com/datasets/thedevastator/revealing-insights-from-youtube-video-and-channe?select=YouTubeDataset_withChannelElapsed.csv
+
+
+
+
+
+
+
+
+##GEREKLİ KÜTÜPHANELER 
+```{r}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(broom)
+library(ggpubr)
+library(ISLR)
+library(POET)
+library(faraway)
+library(mice)
+
+```
+
+
+#DATA VE DEĞİŞKENLERİNİN AÇIKLAMASI:
+
+
+data= 500k gözlem ve 27 değişkenden oluşan bir youtube veri seti.değişken açıklamaları aşağıda verildi
+
+
+
+
+index: index
+
+videoViewCount : video izlenme sayısı (BAĞIMLI DEĞŞKEN OLARAK BUNDA KARAR KILDIM) 
+
+totalviews/channelelapsedtime: Ratio of total views to channel elapsed time. (Ratio)
+
+channelld: kanal idi 
+
+videoCategoryld: video kategorisi 
+
+channelViewCount: kanal içinde ki toplam görüntülenme . (Integer) 
+
+likes/subscriber: beğeni/abone oranı. (Ratio)
+
+views/subscribers: görüntülenme abone oranı. (Ratio)
+
+videoCount: video sayısı
+
+subscriberCount: kanal içi toplam abone sayısı. (Integer)
+
+videoId: video id
+
+dislikes/views: dislike/görüntülenme oranı. (Ratio)
+
+channelelapsedtime: kanalda geçen süre toplam süre*
+
+comments/subscriber:yorumlar / abone oranı. (Ratio)
+
+channelCommentCount: kanala yapılan yorum sayısı. (Integer)*
+
+likes/dislikes: like/dislike oranı. (Ratio)
+
+comments/views: yorum/görüntülenme oranı. (Ratio)
+
+totvideos/videocount: toplam videoların izlenmes sayısı / o videonun izlenme oranı
+
+elapsedtime: geçilen süre
+
+videoLikeCount: beğeni sayısı
+
+videoDislikeCount: beğenmeme sayısı
+
+dislikes/subscriber: beğenmeme / abone oranı. (Ratio)
+
+totviews/totsubs: toplam görüntülenme / toplam aboneye oranı. (Ratio)
+
+views/elapsedtime: izlenme/ geçilen süre
+
+videoPublished: tarih
+
+VideoCommentCount: yorum sayısı*
+
+
+
+##DATAYI İMPORT ETME
+```{r}
+
+YouTubeDataset <- read_csv("C:/Users/DELL G3/Desktop/datasets/YouTubeDataset.csv")
+#View(YouTubeDataset)
+
+
+```
+
+#DEĞİŞKENLERİN İSİMLERİ
+27 değişken var bunların hepsini almıyaçağız.öncelikle karakter olanları cıkarığağız sonrasında stepwise yöntemlerinden birini kullanıp gereksiz değişkenleri çıkarıçağız ilerleyen bölümlerde.
+```{r}
+names(YouTubeDataset)
+```
+
+#DATA FRAME'IN BOYUTU
+
+575 bin gözlem ve 27 değişken var. data çok büyük. data frame'ndın bir parçası ile çalışıcam. ilk 2000 gözlem ile 
+```{r}
+dim(YouTubeDataset)
+```
+
+
+##Datayı düzenleme
+ index, channelld, videoCategoryld,videoId değikenleri alınmadı çünkü lineer regresyon modeli kurarken işimize yaramıyacaklar.
+```{r}
+#değişkenlerin sırası düzeltildi ve yukarıda değişkenler veri setine alınmadı
+YouTubeData  <- YouTubeDataset[1:2000,c("videoViewCount","channelViewCount","videoCount","channelelapsedtime","channelCommentCount","elapsedtime","videoLikeCount","videoDislikeCount","VideoCommentCount","totalviews/channelelapsedtime","likes/subscriber","views/subscribers","dislikes/views","comments/subscriber","likes/views","likes/dislikes","comments/views","totvideos/videocount","dislikes/subscriber","totviews/totsubs","views/elapsedtime")]
+
+
+#değişken isimlerinin içindeki "/" işaretini "FOR" ile değiştirdim çünkü regresyon modelinde değişkeneri azarken bölme işareti olarak alıyordu. böyle bi düzenleme ihtiyacı duydum
+names(YouTubeData) <- c("videoViewCount","channelViewCount","videoCount","channelelapsedtime","channelCommentCount","elapsedtime","videoLikeCount","videoDislikeCount","VideoCommentCount","totalviewsFORchannelelapsedtime","likesFORsubscriber","viewsFORsubscribers","dislikesFORviews","commentsFORsubscriber","likesFORviews","likesFORdislikes","commentsFORviews","totvideosFORvideocount","dislikesFORsubscriber","totviewsFORtotsubs","viewsFORelapsedtime")
+```
+
+
+
+##DATA ÖN İNCELEME
+#Dataya genel bakış
+Genel bir bakış atıyoruz veriye istediğimiz boyutda ve düzene geldi.
+
+```{r}
+head(YouTubeData)
+```
+
+#Değişken türleri
+tüm değişkenlerimiz numeric. devam ediyoruz
+```{r}
+str(YouTubeData)
+```
+
+#değişken isimleri
+değişken isimlerinde bir sorun yok devam ediyoruz
+```{r}
+names(YouTubeData)
+```
+
+#sutun ve satır sayımız
+verimizin gözlem sayısını düşürdük.2000 gözlem ve 21 değişkene düştü
+```{r}
+nrow(YouTubeData) #2000 gözlem
+ncol(YouTubeData) #21 değişken
+```
+
+#özet istatistikler
+videoCount,channelCommentCount, videoLikeCount, videoDislikeCount,  videoDislikeCount,likesFORsubscriber ,totalviewsFORchannelelapsedtime,dislikesFORsubscriber  değişkenlerin çoğunda aykırı değer olabileçeğini tahmininde bulunabiliriz ama sadece ön yorum aykırı değerlerin kontrolü bölümünde daha detaylı ele alıçağız.
+```{r}
+summary(YouTubeData)
+```
+
+#plot 
+verimizin ön incelemsine devam ediyoruz
+çok fazla değişken olduğu için net bakamıyoruz 
+aşağıda değişkenleri azalttıktan sonra daha net bakabiliceğiz
+```{r}
+
+plot(YouTubeData[,1:10])
+plot(YouTubeData[,10:21])
+```
+
+#kolerasyon
+
+#corplot
+grafiği buyuttuğumuz zaman net bir şelikde gorebiliyoruz.
+cor() fonksiyonunu kullanmaktansa bu tarz buyuk veriler için görsel kullanmak daha iyi 
+corrplot fonksiyonunu kullandım
+
+```{r}
+library(corrplot)
+
+kolerasyon_matrisi <- cor(YouTubeData)
+
+corrplot(kolerasyon_matrisi, method = "circle")
+
+
+
+
+```
+
+
+#değişkenler arasındaki ilişki 
+değişkenler arasındaki ilişkiyi daha iyi anlamızı sağlayan bir diğer kullanışli grafik.histogram, saçılım grafiği değişkenler arasındaki lineer ve eğrisel ilişki olup olmadıgını anlamamızı saglayan eğri cizimleri ve kolerasyon katsayıları bu katsayıların anlamlılık düzeylerini tek grafikle bakabiliyoruz
+```{r}
+
+library(PerformanceAnalytics)
+
+chart.Correlation(YouTubeData, histogram = T,pch =19)
+```
+
+
+
+##EKSİK GÖZLEM
+
+
+Verimizde hiç eksik gözlem yok
+```{r}
+md.pattern(YouTubeData)
+```
+
+Veriye elle Rasgele 15 NA ekliyeceğiz. daha sonra bunu ortalama ile dolduraçağız
+```{r}
+set.seed(123)
+row_num <- sample(1:2000, size = 15)
+
+YouTubeData[row_num,] <- NA
+```
+
+mice() fonksiyonu ile eksik gozlemlerimizi ortalamaya gore bize sunulan 5 alternatif içinden biri ile doldurduk
+```{r}
+YouTubeData <- mice(YouTubeData,method = "cart")
+
+YouTubeData$imp #ortalamaya gore 5 alternatifle doldurma yapti
+
+YouTubeData <- complete(YouTubeData,3)# 3u seçtik
+```
+
+tekrar baktığımızda artık NA yok
+```{r}
+md.pattern(YouTubeData)
+```
+
+
+
+
+
+##TEST-TRAİN
+
+#normal-yöntem
+eksik verilerden kurtulduğumuza göre. modele başlamadan önce test ve train olarak ayırıyoruz veriyi. %80 train.%20 test olacak şekilde
+
+```{r}
+set.seed(23)
+sampleIndex<-sample(1:nrow(YouTubeData),size=0.8*nrow(YouTubeData))
+
+trainset<-YouTubeData[sampleIndex,]
+testset<-YouTubeData[-sampleIndex,]
+
+```
+
+
+###MODELLER
+
+#STEPWİSE
+
+Stepwise regresyon yöntemlerinden both side yöntemini kullanarak modelde kullanılması gereken değişkenlere karar vericeğiz
+```{r}
+step(lm(videoViewCount~1, data=trainset),direction = "both",
+     scope = ~ channelViewCount+videoCount+channelelapsedtime+channelCommentCount+elapsedtime+videoLikeCount+videoDislikeCount+VideoCommentCount+totalviewsFORchannelelapsedtime+likesFORsubscriber+viewsFORsubscribers+dislikesFORviews+commentsFORsubscriber+likesFORviews+likesFORdislikes+commentsFORviews+totvideosFORvideocount+dislikesFORsubscriber+totviewsFORtotsubs+viewsFORelapsedtime)
+```
+
+
+
+full modelde AIC=38969.44 both side yöntemi ile atılan değişkenler sayesınde AIC=34296.28 e kadar düştü.
+
+channelelapsedtime               ,
+dislikesFORviews                
+videoCount                       
+commentsFORviews                 
+likesFORviews                    
+channelViewCount                 
+totviewsFORtotsubs               
+videoDislikeCount       
+
+Değişkenleri modelden çıkarıldı 
+trainset olarak normal ayırma yöntemi ile ayrılan train seti kulanıldı.
+```{r}
+model2 <- lm(formula = videoViewCount ~ viewsFORelapsedtime + VideoCommentCount + 
+    viewsFORsubscribers + totvideosFORvideocount + likesFORdislikes + 
+    elapsedtime + channelCommentCount + totalviewsFORchannelelapsedtime + 
+    commentsFORsubscriber + dislikesFORsubscriber + videoLikeCount + 
+    videoCount + likesFORsubscriber, data = trainset)
+
+
+```
+
+
+
+
+
+
+
+F ve p-value değerleri ile anlamlığı ölçebiliriz.
+h0: p0=p1=p2=....
+h1: p0!=pn herhnagi biri 
+
+p-value çok lüçük h0 red model anlamlı.
+
+
+
+Aşağıda hangi değişkenin y üzeründeki etkisini daha iyi görebilmek için e'yi normal sayıya çavirdim.
+değerler çok büyük çünkü youtubedaki videoların izlenme sayıları çok yüksek olabiliyor. izlenme üzerindeki en büyük pozitif etki viewsFORelapsedtime  (izlenme sayısının videoda geçen süreye oranı) bu değikenin bir birimlik artısı 21880000 gibi bir izlenme sayısına tekabul ediyor ama bu demek değil ki 10 izlenmsei ve 5 sn zaman geçirilmiş bir video 21880000 izlenmiştir diyemezyiz diğer yönden commentsFORsubscriber(yorum/abonesayısı),dislikesFORsubscriber (dislike/abone sayısı)'nın bir birimlik artisi izlenmeyi -5833000,-4644000 etkiliyor. 
+
+(Intercept)                     -1.732e+04   -17320000,00
+viewsFORelapsedtime              2.188e+04    21880000,00
+VideoCommentCount                5.064e+02    506400,00
+viewsFORsubscribers              9.802e+00    9802,00
+totvideosFORvideocount           9.365e-02    93,65
+likesFORdislikes                -4.303e+02   -430300,00
+elapsedtime                      3.198e-01    319,80
+channelCommentCount             -2.341e-01   -234,10
+totalviewsFORchannelelapsedtime -9.680e-01   -968,00
+commentsFORsubscriber           -5.833e+03   -5833000,00
+dislikesFORsubscriber           -4.644e+03   -4644000,00
+videoLikeCount                  -1.003e+01   -10030,00
+videoCount                       1.346e-01    134,60
+likesFORsubscriber               1.536e+03    1536000,00
+```{r}
+summaryy <- summary(model2)
+summaryy
+```
+adjR^2=
+kurduğumuz model2 bağımlı değişkeni %94 oranında anlamı bir şelikde açıklayabiliyor.1 e ne kadar yakınsa modelim,z o kadar iyi ve 4 oranı modelimizin hayet iyi olduğunun göstergesi.
+```{r}
+summaryy$adj.r.squared
+```
+
+
+```{r}
+AIC(model2,k=3) #AIC için varyanda bir paramtre olark sayılıp toplam paramtre sayısı 3 olarak belirlendi
+BIC(model2)
+```
+
+videoCount p-valuesu 0.44 anlamlı değil modelden çıkarttım.likesFORsubscriber,likesFORsubscriber değişkenlerinin p-valusu 0.088 ve 0.09 sınırda kalıyor. değişken olarak alıp almamak bizim kararımız ama ben çıkarma karar verdim. zaten çok değişken var ve model ne kadar az değişkenle çalışırsa o kadar. 
+```{r}
+model2_new <- lm(formula = videoViewCount ~ viewsFORelapsedtime + VideoCommentCount + 
+    viewsFORsubscribers + totvideosFORvideocount + likesFORdislikes + 
+    elapsedtime + channelCommentCount + totalviewsFORchannelelapsedtime + 
+    commentsFORsubscriber + videoLikeCount, data = trainset)
+
+summary(model2_new)
+```
+
+bu değişkenlerin çıkması adj r^2 üzerinde çok küçük bir etki yaptı değişken sayısını düşürmekte doğru bir karar verdiğimiz göruyoruz
+```{r}
+sum_mmodel2_new<- summary(model2_new)
+sum_mmodel2_new$adj.r.squared
+```
+
+0.0001054005 r^2 üzerinde bu kadar bir fark oluştu 1/10000. önemsiz bir fark
+```{r}
+summaryy$adj.r.squared - sum_mmodel2_new$adj.r.squared
+
+```
+
+```{r}
+AIC(model2_new,k=3) #AIC için varyanda bir paramtre olark sayılıp toplam paramtre sayısı 3 olarak belirlendi
+BIC(model2_new)
+```
+
+
+
+
+
+
+##AYKIRI GOZLEMLER 
+
+modelde aykırı gözlemleri tesbit edebilmek için cook distance 
+
+
+```{r}
+names(trainset)
+```
+
+
+
+##AYKIRI GOZLEMLER 
+
+modelde aykırı gözlemleri tesbit edebilmek için cook distance 
+
+
+```{r}
+names(trainset)
+
+```
+
+```{r}
+dist<-cooks.distance(model2_new)
+
+olcut1<- mean(dist)*3
+olcut2<-4/length(dist)
+olcut1;olcut2
+```
+
+
+```{r}
+olcut1Index<-which(dist>olcut1)
+olcut2Index<-which(dist>olcut2)
+length(olcut1Index)
+length(olcut2Index)
+```
+
+olcut2 yı kullandım 64 aykırı değer cıkartıldı
+```{r}
+trainsetrem<-trainset[-olcut2Index,]
+nrow(trainsetrem)
+```
+
+
+Aykırı gözlemlerin çıkartıldığı,normal ayırma yöntemi ile ayrılmis train set ve gereksiz değişkenlerin çıkarıldığı modelin AIC = 33888.22, BIC=33940.27 şimdiki en iyi AIC BIC değerleri
+```{r}
+model2_new_newtrainset_aykirisiz <- lm(formula = videoViewCount ~ viewsFORelapsedtime + VideoCommentCount + 
+    viewsFORsubscribers + totvideosFORvideocount + likesFORdislikes + 
+    elapsedtime + channelCommentCount + totalviewsFORchannelelapsedtime + 
+    commentsFORsubscriber + videoLikeCount, data = trainsetrem)
+
+summary(model2_new_newtrainset_aykirisiz)
+
+AIC(model2_new_newtrainset_aykirisiz,k=3) #AIC için varyanda bir paramtre olark sayılıp toplam paramtre sayısı 3 olarak belirlendi
+BIC(model2_new_newtrainset_aykirisiz)
+```
+
+
+TÜM MODELLERİN AIC BICLERİ TABLO HALİNE GETİRİP KARŞILAŞTIRALIM
+
+model2
+model2_new
+model2_new_newtrainset_aykirisiz
+
+
+en iyi model "model2_new_newtrainset_aykirisiz". aıc bıc değerleri diğer modellere göre çok daha düşük.
+
+```{r}
+
+row.names <- c("model2","model2_new","model2_new_newtrainset_aykirisiz")
+col.names <- c("AIC","BIC")
+
+AİC_BİC_TABLO <- matrix(c(38855.3,38920.97,
+         38852.48,38905.01,
+         33888.22,33940.2 ), nrow = 3, ncol = 2, dimnames = list(row.names, col.names),byrow = T)
+
+AİC_BİC_TABLO
+```
+
+
+###VARSAYIMLAR####
+
+
+
+
+Bu grafik yardımıyla ;
+* Değişen varyans sorunu olup olmadığı incelenir
+* Aykırı değerlerle ilgili yüzeysel bir inceleme yapılabilir.
+
+Hafif çaplı değişen varyans sorunu da içerebileceği düşünülmektedir.Ama bu durmun testlerle daha net bir şekilde ortaya konulması gerekmektedir.
+
+
+```{r}
+model2_new_newtrainset_aykirisiz $residuals
+artık<-as.numeric(model2_new_newtrainset_aykirisiz $residuals)
+artık
+plot(artık)
+```
+
+# ilk grafik aykırı gozlemlerı gosterır
+# ikinci grafık qq grafık artıkların normal dagılıp dagılmadıgını gosterır
+#4 grafık tum degerlerın etkısını gosterir
+#quq dıstance aykırı gozlem olmaya en yakın degerler
+```{r}
+plot(model2_new_newtrainset_aykirisiz )
+```
+
+
+
+#hatalar normal mi 
+
+hataların geneli çizgi üzerinde dağilmis gözlem sayısı fazla olduğu için sanki eğrimiz düz bir çizgi görünüyor.aynı aşağıda emin olmak ıcın histogram,yogunluk grafiği ve bınları testle desteklıyeceğiz 
+```{r}
+qqnorm(residuals(model2_new_newtrainset_aykirisiz),ylab="residuals",main="Model QQPLOT",col="darkseagreen4",col.main="blue",font.lab=1.5,col.lab="darkslategray",col.axis="darkslategray")
+qqline(residuals(model2_new_newtrainset_aykirisiz),col="red")
+```
+
+histogram
+emin olamıyoruz hala hatalar normal mi dağilmiş?
+```{r}
+hist(residuals(model2_new_newtrainset_aykirisiz),xlab="Residuals",main="")
+```
+yoğunluk grafiği
+normal gibi görünüyor 
+```{r}
+plot(density(residuals(model2_new_newtrainset_aykirisiz),na.rm = T),main="Model Yogunluk Grafigi",col="darkgoldenrod4",col.main="darkgoldenrod3")
+```
+
+son olarak test ediyoruz 
+ve normal dağilmadığını goruyoruz. 0.05den kucuk
+```{r}
+library(olsrr)
+ols_test_normality(model2_new_newtrainset_aykirisiz$residuals)
+```
+
+
+
+#Varyanslar homejen mi ?
+
+
+değişen varyans için grafik değerlendirmesi
+
+grafikten değişen varyans probleminin olduğunu görünüyor. ama ön değerlendirme bu test etmemiz lazım
+```{r}
+plot(fitted(model2_new_newtrainset_aykirisiz),residuals(model2_new_newtrainset_aykirisiz),xlab="Fitted",ylab="Residuals")
+abline(h=0)
+
+```
+
+grafiğe daha yakından bakalım
+```{r}
+plot(fitted(model2_new_newtrainset_aykirisiz),sqrt(abs(residuals(model2_new_newtrainset_aykirisiz))), xlab="Fitted",ylab=
+expression(sqrt(hat(epsilon))))
+```
+model anlamlı cıktı
+```{r}
+
+e<-residuals(model2_new_newtrainset_aykirisiz)
+bpmod<-lm(e^2~.,data=trainset_new)
+summary(bpmod) #model anlamli
+```
+
+
+değerimiz 0 a çok yakın varyans problemi VAR
+```{r}
+library(lmtest)
+bptest(model2_new_newtrainset_aykirisiz) #0 a cok yakin sabit varyans problemi var 
+```
+
+##DÖNÜŞÜM
+hatalar normal dağilmıyor ve homojen varyanslılık problemi var bunun için karekok donusumu yapmaya karar verdim bakalım varsayımları sağlıyacak mı?
+
+sqrt donusumu 
+```{r}
+model_sqrt <- lm(
+    sqrt(videoViewCount)~
+    sqrt(viewsFORelapsedtime)+
+    sqrt(VideoCommentCount)+
+    sqrt(viewsFORsubscribers)+
+    sqrt(totvideosFORvideocount)+
+    sqrt(likesFORdislikes)+
+    sqrt(elapsedtime)+
+    sqrt(channelCommentCount)+
+    sqrt(totalviewsFORchannelelapsedtime)+
+    sqrt(commentsFORsubscriber)+
+    sqrt(videoLikeCount),
+  data = trainsetrem)
+```
+
+adjR^2 0.99 çıktı önceki r^2 değerimizde iyiydi ama şimdi modelimiz y'yi %99 oranında anmlamı bir şekilde açıklayabiliyor
+```{r}
+summary(model_sqrt) 
+```
+
+artıklar hem test hemde qq plot grafiginde normal dağılıyor artık
+```{r}
+plot(model_sqrt) #qq plot normal görünüyor
+```
+
+
+```{r}
+ols_test_normality(model_sqrt$residuals) #0.05den buyuk p-value (Shapiro-Wilk ,Kolmogorov-Smirnov) testlerine gore
+```
+0.75 olduğu için yani 0.05den buyuk cıkmadıgı ıcın hala homojen varyanslılık problemını cozduk
+
+
+```{r}
+bptest(model_sqrt)
+```
+
+
+                           
+                           
+                           
+                           
+                           
+                           
+                                    ***TUM VARYASIMLARI DUZELTTIK VE COZDUK**** 
+
+
+#model guven aralıgı
+```{r}
+confint(model_sqrt)
+```
+
+#sum sq degiskenin modele olan katsisidir
+```{r}
+anova(model_sqrt)
+```
+
+
+
+
+
+
+
+
+
+
+
+#COKLU BAGLANTI PROBLEMİ
+
+#VİF
+VIF>10 olması durumu çoklu bağlantıyı işaret etmektedir
+
+viewsFORsubscribers,commentsFORsubscriber değişkenleri çoklu baglantı problemi varmıs bunları cıkartıp yenı model olusturucaz
+```{r}
+library(car)
+vif(model_sqrt)
+```
+
+yeni model ve varyasımlar saglanıyor artık
+```{r}
+model_sqrt3 <- lm(
+    sqrt(videoViewCount)~
+    sqrt(viewsFORelapsedtime)+
+    sqrt(VideoCommentCount)+
+    sqrt(totvideosFORvideocount)+
+    sqrt(likesFORdislikes)+
+    sqrt(elapsedtime)+
+    sqrt(channelCommentCount)+
+    sqrt(totalviewsFORchannelelapsedtime)+
+    sqrt(videoLikeCount),
+  data = trainsetrem)
+
+
+
+
+                                                       ##ÖNEMLİ###
+summary(model_sqrt3) #anlamli r^2 0.98
+ols_test_normality(model_sqrt3$residuals) #artiklar normal
+bptest(model_sqrt3) #homojen varyans yok.
+vif(model_sqrt3) #coklu baglanti problemi cozuldu
+
+
+```
+
+
+
+
+
+#İLİŞKİ HATALARİ
+
+
+
+
+Bu garfikten otokorelasyon sorunu olmadığı açık bir şekilde görülmektedir
+```{r}
+n <- length(residuals(model_sqrt3))
+plot(tail(residuals(model_sqrt3),n-1) ~ head(residuals(model_sqrt3),n-1), xlab=
+expression(hat(epsilon)[i]),ylab=expression(hat(epsilon)[i+1]))
+abline(h=0,v=0,col=grey(0.75))
+```
+##  Durbin-Watson test
+
+
+ p-value = 0.4482 değerlendirildiğinde H0 hipotezi red edilemez.Yani hatalar arasında korelasyon olmadığı görülür.
+```{r}
+require(lmtest)
+dwtest(sqrt(videoViewCount) ~ sqrt(viewsFORelapsedtime) + 
+    sqrt(VideoCommentCount) + sqrt(totvideosFORvideocount) + 
+    sqrt(likesFORdislikes) + sqrt(elapsedtime) + sqrt(channelCommentCount) + 
+    sqrt(totalviewsFORchannelelapsedtime) + sqrt(videoLikeCount), 
+    data = trainsetrem)
+```
+
+
+### MODEL ÜZERİNE TAHMİN YAPMA
+ama once model için cıkartıgımız değişkenleri test seti içinden de çıkarmamız lazım
+
+```{r}
+testset2 <- testset[,c("videoViewCount","viewsFORelapsedtime","VideoCommentCount","totvideosFORvideocount","likesFORdislikes","elapsedtime","channelCommentCount","totalviewsFORchannelelapsedtime","videoLikeCount")]
+```
+
+
+```{r}
+tahminler <- predict(model2,testset)
+yler <- testset2$videoViewCount
+tablo <- data.frame(yler,tahminler)
+tablo$farklari <- yler-tahminler
+tablo$farklari<- as.integer(tablo$farklari)
+tablo
+
+head(tahminler)
+```
+
+
+```{r}
+as.integer(tablo$farklari)
+```
